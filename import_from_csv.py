@@ -1,5 +1,3 @@
-import sqlite3
-import re
 from question_orm import Question
 from model_utils import *
 from sqlalchemy import MetaData
