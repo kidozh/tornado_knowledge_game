@@ -1,0 +1,228 @@
+{% extends ../base.html %}
+
+{% block title %}主持人页面{% end %}
+
+{% block content %}
+<div class="container-fluid background" id="host">
+    <div class="row">
+        <div class="col-md-2">
+            <h1 class="text-center text-danger" id="countdown">等待</h1>
+        </div>
+        <div class="col-md-8">
+            <h1 class="text-center">{{! now_question }}</h1>
+            <div class="row option-lists" >
+                <div class="col-md-12 option-block" v-for="option in now_options">
+                    <h3 class="text-center">{{! option }}</h3>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <h1 class="text-center text-success"><small>第</small>{{! cnt_question }}<small>题</small></h1>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-5 offset-md-1 team-block team-red-block">
+            <h4 class="text-center">Team 1</h4>
+            <h1 class="text-center"><small>总分 </small>{{! team_1_info.total_score }}</h1>
+            <div class="row">
+                <div class="col-md-6">
+                    <h3 class="text-left">
+                        上一次得分 : {{! team_1_info.prev_score }}
+                    </h3>
+                </div>
+                <div class="col-md-6">
+                    <h3 class="text-right">
+                        时长 ： {{! team_1_info.prev_time }}s
+                    </h3>
+                </div>
+
+
+            </div>
+        </div>
+        <div class="col-md-5 team-block team-blue-block">
+            <h4 class="text-center">Team 2</h4>
+            <h1 class="text-center"><small>总分 </small>{{! team_2_info.total_score }}</h1>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <h3 class="text-left">
+                        上一次得分 : {{! team_2_info.prev_score }}
+                    </h3>
+                </div>
+                <div class="col-md-6">
+                    <h3 class="text-right">
+                        时长 ： {{! team_2_info.prev_time }}s
+                    </h3>
+                </div>
+            </div>
+
+
+        </div>
+    </div>
+
+    <div class="row toolbar">
+        <div class="col-md-4 offset-md-2">
+            <button onclick="start_new_problem()" class="btn btn-block btn-success">新一题</button>
+        </div>
+        <div class="col-md-4 offset-md-1">
+            <button onclick="refresh_team()" class="btn btn-block btn-danger">清空</button>
+        </div>
+    </div>
+
+
+</div>
+
+
+{% end %}
+
+{% block footer_js %}
+<script>
+    var ws;
+
+    var set;
+
+    function showTime(count) {
+        var time = count;
+        var p = document.getElementById("countdown");
+        p.innerHTML = time+"s";
+        set = setInterval(function() {
+            time--;
+            p.innerHTML = time+"s";
+            if(time === 0) {
+                p.innerHTML = "结束";
+                clearInterval(set);
+            }
+        }, 1000);
+
+    }
+
+    var app = new Vue({
+        el: '#host',
+        data: {
+            seen: true,
+            now_question:"Welcome to New York!",
+            now_options:["ferry","contains","mima","Youshihua"],
+            cnt_question:0,
+            right_option:0,
+            team_1_info:{
+                total_score:0,
+                prev_score:0,
+                prev_time: 0
+            },
+            team_2_info:{
+                total_score:0,
+                prev_score:0,
+                prev_time: 0
+            },
+            answered_team :0
+        },
+        watch:{
+            answered_team: function (new_num, old_num) {
+                if(new_num ===2){
+                    //trigger right answer
+                    $(".option-block").addClass("option-disabled");
+                    let right_option_number = this.right_option;
+                    let cnt = 0;
+                    $(".option-block").each(function () {
+                        if (cnt === right_option_number){
+                            $(this).removeClass("option-disabled");
+                            $(this).addClass("option-right");
+                        }
+
+                       cnt +=1;
+                    });
+                }
+                else {
+                    $(".option-block").each(function () {
+                            $(this).removeClass("option-right");
+
+                    });
+                }
+            }
+        }
+    });
+
+    window.onload = function () {
+        ws = new WebSocket("ws://localhost:8888/websocket");
+        ws.onopen = function() {
+            let state_dict = {
+                aim:"request_new_problem",
+                team_1_info:app.$data["team_1_info"],
+                team_2_info:app.$data["team_2_info"],
+            };
+            ws.send(JSON.stringify(state_dict));
+        };
+        ws.onmessage = function (evt) {
+            data = evt.data;
+
+            let problem = JSON.parse(data);
+            if (problem["aim"] === "request_new_problem"){
+                console.log(problem);
+                clearInterval(set);
+                showTime(10);
+                app.$data["answered_team"] = 0;
+                app.$data["cnt_question"] += 1;
+                $(".option-block").removeClass("option-disabled");
+                app.$data["now_question"] = problem["problem_str"];
+                app.$data["now_options"] = problem["options"];
+                app.$data["right_option"] = problem["right_answer"].charCodeAt() - 65;
+
+            }
+            else if(problem["aim"] === "send_score"){
+                var score_info = problem;
+                let teamname = score_info["teamname"];
+                if (teamname === "A"){
+                    app.$data["answered_team"] +=1;
+                    team_info = app.$data["team_1_info"];
+                    team_info.total_score += parseFloat(parseFloat(score_info["added_score"]).toFixed(2));
+                    team_info.prev_score = parseFloat(parseFloat(score_info["added_score"]).toFixed(2));
+                    team_info.prev_time = score_info["cost_time"];
+                    let selected_options = score_info["selected_option"];
+                    let selected_option_index = selected_options.charCodeAt() - 65;
+                    app.$data["now_options"][selected_option_index] = "A队伍选择 < "+ app.$data["now_options"][selected_option_index]
+                }
+                else if(teamname === "B"){
+                    app.$data["answered_team"] +=1;
+                    team_info = app.$data["team_2_info"];
+                    team_info.total_score += parseFloat(parseFloat(score_info["added_score"]).toFixed(2));
+                    team_info.prev_score = parseFloat(parseFloat(score_info["added_score"]).toFixed(2));
+                    team_info.prev_time = score_info["cost_time"];
+                    let selected_options = score_info["selected_option"];
+                    let selected_option_index = selected_options.charCodeAt() - 65;
+                    app.$data["now_options"][selected_option_index] = app.$data["now_options"][selected_option_index]+" > B队伍选择"
+                }
+
+            }
+
+            //alert(evt.data);
+        };
+    };
+
+    function start_new_problem() {
+        var state_dict = {
+            aim:"request_new_problem",
+            team_1_info:app.$data["team_1_info"],
+            team_2_info:app.$data["team_2_info"],
+        };
+        ws.send(JSON.stringify(state_dict));
+    }
+
+    function refresh_team() {
+        app.$data["answered_team"] = 0;
+        app.$data["cnt_question"] = 0;
+        for(let key in app.$data["team_1_info"]){
+            app.$data["team_1_info"][key] = 0;
+
+        }
+        for(let key in app.$data["team_2_info"]){
+            app.$data["team_2_info"][key] = 0;
+        }
+        return true;
+    }
+
+
+</script>
+
+
+{% end %}

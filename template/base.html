@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta charset="UTF-8">
+    <title>{% block title %}Default title{% end %}</title>
+    <link rel="stylesheet" href="/static/bootstrap-4.2.1-dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ static_url("css/brain_pk.css") }}">
+
+</head>
+<body>
+
+{% block content %}{% end %}
+
+<script src="/static/js/jquery.slim.js"></script>
+<script src="/static/js/popper.js"></script>
+<script src="/static/bootstrap-4.2.1-dist/js/bootstrap.min.js"></script>
+<script src="/static/js/vue.js"></script>
+
+{% block footer_js %}{% end %}
+
+</body>
+
+</html>

@@ -1,0 +1,248 @@
+{% extends ../base.html %}
+
+{% block title %}队伍{{teamname}}页面{% end %}
+
+{% block content %}
+<div class="container-fluid background" id="host">
+    <div class="row">
+        <div class="col-md-8 offset-md-2">
+            <h3 class="text-center">你的队伍为{{! team_name }}</h3>
+            <h1 class="text-center">{{! now_question }}</h1>
+            <div class="row option-lists" >
+                <button class="col-md-12 option-block" v-for="option in now_options" v-bind:id="option.index">
+                    <h1 class="text-center">{{! option.text }}</h1>
+                </button>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <h3 class="text-center" id="countdown">等待</h3>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-5 offset-md-1 team-block team-red-block">
+            <h4 class="text-center">Team 1</h4>
+            <h1 class="text-center"><small>总分 </small>{{! team_1_info.total_score }}</h1>
+            <div class="row">
+                <div class="col-md-6">
+                    <h3 class="text-left">
+                        上一次得分 : {{! team_1_info.prev_score }}
+                    </h3>
+                </div>
+                <div class="col-md-6">
+                    <h3 class="text-right">
+                        时长 ： {{! team_1_info.prev_time }}s
+                    </h3>
+                </div>
+
+
+            </div>
+        </div>
+        <div class="col-md-5 team-block team-blue-block">
+            <h4 class="text-center">Team 2</h4>
+            <h1 class="text-center"><small>总分 </small>{{! team_2_info.total_score }}</h1>
+
+            <div class="row">
+                <div class="col-md-6">
+                    <h3 class="text-left">
+                        上一次得分 : {{! team_2_info.prev_score }}
+                    </h3>
+                </div>
+                <div class="col-md-6">
+                    <h3 class="text-right">
+                        时长 ： {{! team_2_info.prev_time }}s
+                    </h3>
+                </div>
+            </div>
+
+
+        </div>
+    </div>
+
+
+</div>
+
+
+{% end %}
+
+{% block footer_js %}
+<script>
+    var ws;
+
+    var lastTime = null;
+
+    var set;
+
+    function showTime(count) {
+        var time = count;
+        var p = document.getElementById("countdown");
+        set = setInterval(function() {
+            time--;
+            p.innerHTML = time+"s";
+            if(time === 0) {
+                p.innerHTML = "结束";
+                clearInterval(set);
+            }
+        }, 1000);
+
+    }
+
+
+    function send_answer_by_press_btn(option) {
+
+        let state_dict;
+        let billingItems = document.querySelectorAll('.option-block');
+        $(".option-block").addClass("option-disabled");
+        for(let i=0 ; i<billingItems.length;i++){
+            billingItems[i].disabled = true;
+
+        }
+        console.log("disabled Btn");
+        let curTime = new Date();
+        let timeIntervalMillseconds = curTime - lastTime;
+        let timeIntervalSec = timeIntervalMillseconds / 1000;
+        if(app.$data.right_option === option){
+
+            let score = 0;
+
+
+            console.log(timeIntervalSec);
+            if (timeIntervalSec > 10){
+                score = 0;
+            }
+            else if (timeIntervalSec > 5){
+                score = 50 - (timeIntervalSec - 5) * 5;
+            }
+            else{
+                score = (10- timeIntervalSec) * 10;
+            }
+
+            score = score.toFixed(2);
+            timeIntervalSec = timeIntervalSec.toFixed(2);
+
+            state_dict = {
+                aim: "send_score",
+                teamname: app.$data["team_name"],
+                added_score : score,
+                selected_option:option,
+                cost_time:timeIntervalSec
+            };
+            $("#"+option).addClass("option-right");
+            $("#"+option).removeClass("option-disabled");
+        }
+        else{
+            $("#"+option).addClass("option-your-wrong");
+            $("#"+option).removeClass("option-disabled");
+            state_dict = {
+                aim: "send_score",
+                teamname: app.$data["team_name"],
+                added_score : 0,
+                cost_time: timeIntervalSec,
+                selected_option:option,
+            };
+        }
+
+        let right_option = app.$data.right_option;
+        $("#"+right_option).addClass("option-right");
+
+        ws.send(JSON.stringify(state_dict))
+    }
+
+    var app = new Vue({
+        el: '#host',
+        data: {
+            seen: true,
+            team_name:"{{teamname}}未注册！请联系kidozh",
+            now_question:"等候出题中，请稍后！",
+            now_options:[{text:"wait","index":"A"},{text:"wait","index":"B"},{text:"wait","index":"C"},{text:"wait","index":"D"}],
+            right_option:0,
+            team_1_info:{
+                total_score:0,
+                prev_score:0,
+                prev_time: 0
+            },
+            team_2_info:{
+                total_score:0,
+                prev_score:0,
+                prev_time: 0
+            }
+        }
+    });
+
+
+
+    window.onload = function () {
+
+        $("#A").on("click",function () {
+            send_answer_by_press_btn("A");
+        });
+
+        $("#B").on("click",function () {
+            send_answer_by_press_btn("B");
+        });
+
+        $("#C").on("click",function () {
+            send_answer_by_press_btn("C");
+        });
+
+        $("#D").on("click",function () {
+            send_answer_by_press_btn("D");
+        });
+
+
+
+        let test = window.location.host;
+
+        ws = new WebSocket("ws://"+test+"/websocket");
+        ws.onopen = function() {
+            var state_dict = {
+                aim:"register",
+                teamname:"{{teamname}}"
+            };
+            ws.send(JSON.stringify(state_dict));
+        };
+        ws.onmessage = function (evt) {
+            raw_data = evt.data;
+
+
+
+            var data = JSON.parse(raw_data);
+            if(data["state"]["aim"]=== "register"){
+                app.$data["team_name"] = data["teamname"]
+
+            }
+            else if(data["state"]["aim"] === "request_new_problem") {
+                var billingItems = document.querySelectorAll('.option-block');
+                clearInterval(set);
+                showTime(10);
+                $(".option-block").removeClass("option-disabled");
+                for(let i=0 ; i<billingItems.length;i++){
+                    billingItems[i].disabled = false;
+
+                }
+                $(".option-right").removeClass("option-right");
+                $(".option-your-wrong").removeClass("option-your-wrong")
+                lastTime = new Date();
+                problem = data;
+                app.$data["now_question"] = problem["problem_str"];
+                app.$data["now_options"] = problem["options"];
+                app.$data["right_option"] = problem["right_answer"];
+
+                app.$data["team_1_info"] = data["state"]["team_1_info"];
+                app.$data["team_2_info"] = data["state"]["team_2_info"];
+                console.log(problem);
+                // $("#D").on("click",function () {
+                //     send_answer_by_press_btn("D");
+                // });
+
+            }
+
+            //alert(evt.data);
+        };
+    };
+
+
+</script>
+
+
+{% end %}
